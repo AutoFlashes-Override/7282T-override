@@ -14,14 +14,19 @@ inline void lifts(int input) {
   lift2.move(input);
 }
 
-inline ez::PID liftPID{0.45, 0, 0, 0, "Lift"};
+inline ez::PID liftPID{1.0, 0, 0, 0, "Lift"};
 
 //set up the claw
 inline ez::Piston claw('B');
 
 //setup motors for toggle mech
 inline pros::MotorGroup togglemech({-21, 20});
+inline pros::Motor toggle1(-21); 
+inline pros::Motor toggle2(20);
 
+inline void Toggle(int input) {
+  togglemech.move(input);
+ }
 // Your motors, sensors, etc. should go here.  Below are examples
 
 // inline pros::Motor intake(1);

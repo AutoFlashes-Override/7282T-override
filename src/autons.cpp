@@ -48,16 +48,50 @@ void default_constants() {
   chassis.pid_angle_behavior_set(ez::shortest);  // Changes the default behavior for turning, this defaults it to the shortest path there
 }
 
+//lift function
+void lift_auto(double target) {
+  liftPID.target_set(target);
+  while (liftPID.exit_condition({lift1, lift2}, true) == ez::RUNNING) {
+    double output = liftPID.compute(lift1.get_position());
+     output = liftPID.compute(lift2.get_position());
+    lifts(output);
+    pros::delay(ez::util::DELAY_TIME);
+  }
+  lifts(20);
+}
 //left side auton 
 void leftsideauton(){
-   chassis.pid_drive_set(-15.5_in, DRIVE_SPEED, true); //drive forwards
+  //Flip the toggle
+  claw.set(true); //set the claw so that its clamped 
+  pros::delay(500); //wait half a sec
+  toggle1.move(127); //move the toggle motors at full speed
+  toggle2.move(127);
+  pros::delay(500); //wait half a sec
+  //Move towards goal
+  chassis.pid_drive_set(-13_in, 60, true); //drive forwards
   chassis.pid_wait();
-
-    chassis.pid_turn_set(90_deg, TURN_SPEED); //turn
+  toggle1.move(0); //stop the toggle motors form spinning
+  toggle2.move(0);
+  chassis.pid_turn_set(90_deg, 60); //turn
   chassis.pid_wait();
-
-   chassis.pid_drive_set(13_in, DRIVE_SPEED, true); //drive forwards
+  pros::delay(500); //wait half a sec
+  lift_auto(200); //lift the lift slightly to score pin
+  pros::delay(500); //wait half a sec
+  chassis.pid_drive_set(-17_in, 60, true); //drive forwards
   chassis.pid_wait();
+  pros::delay(500); //wait half a sec
+  //Score preload
+  lift_auto(100); //lower the lift
+  pros::delay(500); //wait half a sec
+  claw.set(false); //score preload but unclamping claw
+  pros::delay(500); //wait half a sec
+  //Move towards pin/cup
+  chassis.pid_drive_set(15_in, 60, true); //drive forwards
+  chassis.pid_wait();
+  chassis.pid_turn_set(0_deg, 60); //turn
+  chassis.pid_wait();
+  // chassis.pid_drive_set(-17_in, 60, true); //drive forwards
+ 
 }
 ///
 // Drive Example
@@ -114,18 +148,8 @@ void drive_and_turn() {
   chassis.pid_drive_set(-24_in, DRIVE_SPEED, true);
   chassis.pid_wait();
 }
-//Lift PID
-void lift_auto(double target) {
-  liftPID.target_set(target);
-  while (liftPID.exit_condition({lift1, lift2}, true) == ez::RUNNING) {
-    double output = liftPID.compute(lift1.get_position());
-    double output = liftPID.compute(lift2.get_position());
-    lifts(output);
-    pros::delay(ez::util::DELAY_TIME);
-  }
-  lifts(20);
-}
 
+//Lift PID
 void lift() {
   lift_auto(500);
   pros::delay(1000);
