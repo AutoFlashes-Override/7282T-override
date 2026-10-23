@@ -3,6 +3,7 @@
 void default_constants();
 
 void leftsideauton();
+void rightsideauton();
 void drive_example();
 void turn_example();
 void lift();
