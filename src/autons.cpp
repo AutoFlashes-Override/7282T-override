@@ -40,7 +40,6 @@ void default_constants() {
   // The amount that turns are prioritized over driving in odom motions
   // - if you have tracking wheels, you can run this higher.  1.0 is the max
   chassis.odom_turn_bias_set(0.9);
-
   chassis.odom_look_ahead_set(7_in);           // This is how far ahead in the path the robot looks at
   chassis.odom_boomerang_distance_set(16_in);  // This sets the maximum distance away from target that the carrot point can be
   chassis.odom_boomerang_dlead_set(0.625);     // This handles how aggressive the end of boomerang motions are
@@ -49,141 +48,274 @@ void default_constants() {
 }
 
 //lift function
+// void lift_auto(double target) {
+//   liftPID.target_set(target);
+//   while (liftPID.exit_condition({lift1, lift2}, true) == ez::RUNNING) {
+//     double output = liftPID.compute(lift1.get_position());
+//      output = liftPID.compute(lift2.get_position());
+//     lifts(output);
+//     pros::delay(ez::util::DELAY_TIME);
+//   }
+
+// }
+// void lift_auto(double target) {
+//   liftPID.target_set(target);
+  
+//   while (liftPID.exit_condition({lift1, lift2}, true) == ez::RUNNING) {
+//     // Calculate the average position of both motors
+//     double avg_position = (lift1.get_position() + lift2.get_position()) / 2.0;
+//     // Compute a single output based on that average
+//     double output = liftPID.compute(avg_position);
+//     // Send the synchronized power to your lift motors
+//     lifts(output);
+    
+//     pros::delay(ez::util::DELAY_TIME);
+//   }
+// }
 void lift_auto(double target) {
   liftPID.target_set(target);
-  while (liftPID.exit_condition({lift1, lift2}, true) == ez::RUNNING) {
+  // Track the exit condition using just the master motor (lift1)
+  while (liftPID.exit_condition({lift1}, true) == ez::RUNNING) {
+    // Compute PID power based entirely on the master motor's position
     double output = liftPID.compute(lift1.get_position());
-     output = liftPID.compute(lift2.get_position());
+    // Send this exact same power to BOTH motors via your lifts function
     lifts(output);
     pros::delay(ez::util::DELAY_TIME);
   }
-
 }
-
 //left side auton 
 void leftsideauton(){
-  //Flip the toggle
-  claw.set(true); 
-  pros::delay(500); //wait half a sec
-  toggle1.move(127); //move the toggle motors at full speed
-  toggle2.move(127);
-  pros::delay(500); //wait half a sec
-  //Move towards goal
-  chassis.pid_drive_set(-14_in, 60, true); //drive forwards
-  chassis.pid_wait();
-  toggle1.move(0); //stop the toggle motors form spinning
-  toggle2.move(0);
-  chassis.pid_turn_set(90_deg, 60); //turn
-  chassis.pid_wait();
-  pros::delay(500); //wait half a sec
+//FLIP TOGGLE
+  claw.set(false); 
+  toggle1.move_relative(-2000, 200);  //move 2000, velocity 2000
+  toggle2.move_relative(-2000, 200); 
+  pros::delay(500); //wait for toggles to finish turning
+//SCORE PRELOAD
   lift_auto(200); //lift the lift slightly to score pin
-  pros::delay(500); //wait half a sec
-  chassis.pid_drive_set(-18_in, 60, true); //drive forwards
+  lifts(15);
+  chassis.pid_drive_set(15_in, 60, true); //drive to goal for preload
   chassis.pid_wait();
-  pros::delay(500); //wait half a sec
-  //Score preload
-  lift_auto(100); //lower the lift
-  pros::delay(500); //wait half a sec
-  claw.set(false); //score preload but unclamping claw
-  pros::delay(500); //wait half a sec
-  //Get pin/cup
-  chassis.pid_drive_set(15_in, 70); //drive forwards
+  chassis.pid_drive_set(15_in, 10, true); //drive into goal to keep aligner straight
+  pros::delay(100); //wait
+  lift_auto(0); //lower the lift
+  pros::delay(200); //wait
+  lifts(MOTOR_BRAKE_HOLD);
+  claw.set(true); //score preload by unclamping claw
+//SCORE PIN/CUP
+  chassis.pid_drive_set(-11_in, 60, true); //drive backwards to turn
   chassis.pid_wait();
-  chassis.pid_turn_set(0_deg, 80); //turn
+  chassis.pid_turn_set(320, 60); //turn 
   chassis.pid_wait();
-  pros::delay(500); //wait half a sec
+  chassis.pid_drive_set(20_in, 60, true); //drive further from goal
+  chassis.pid_wait();
+  //(Original code w/o dist sensor)
+  // chassis.pid_turn_set(338, 60); //turn towards pin/cup
+  // chassis.pid_wait();
+  lift_auto(0); //bring the lift down to pick up pin/cup
+  chassis.pid_turn_set(359, 23); //Turn to get ready to turn again towards pin/cup
+  //DISTANCE SENSOR FOR TURNING TOWARDS PIN #1
+  while (true) { 
+    if (Dist.get() >= 200 && Dist.get() <= 400 && Dist.get() != 0) {
+      break; 
+    }
+    pros::delay(20); 
+  } 
+  pros::delay(130); 
+  //Reset heading for zero
+  double current_heading = chassis.odom_theta_get();  // get the current heading
+  chassis.pid_turn_set(current_heading, 0);           //Turn the current heading into 0
+  pros::delay(200); //wait
+  //DISTANCE SENSOR FOR DRIVING INTO PIN #1
+  chassis.pid_drive_set(15_in, 25, true); //drive slowly towards pin/cup
+  chassis.pid_wait();
+  while (Dist.get() > 150) { //while loop for distance sensor 
+    pros::delay(20); 
+  } 
+  claw.set(false); //clamp the pin/cup
+  chassis.pid_drive_set(0_in, 0, true); //stop the chassis
+  chassis.pid_wait_quick_chain();
+  pros::delay(200); //wait
+  lift_auto(400); //lift the lift up to score pin
+  lifts(15); //force the lift up
+  chassis.pid_turn_set(120, 60); //turn towards goalto score 
+  chassis.pid_wait(); 
+  chassis.pid_drive_set(13_in, 60, true); //drive to goal to score pin/cup
+  chassis.pid_wait();
+  pros::delay(200); //wait
+  lift_auto(0); //bring the lift down to score pin/cup 1
+  claw.set(true); //let go of the pin/cup
+  chassis.pid_drive_set(-13_in, 60, true); //drive out of goal
+  chassis.pid_wait();
+// SCORE PIN/CUP #2
+  chassis.pid_turn_set(86, 60); //turn towards pin/cup 
+  chassis.pid_wait();
+  chassis.pid_drive_set(13_in, 60, true); //drive towards pin/cup
+  chassis.pid_wait();
+  //DISTANCE SENSOR FOR TURNING TOWARDS PIN #2
+  chassis.pid_turn_set(359, 23); 
+  while (true) { 
+    if (Dist.get() >= 100 && Dist.get() <= 400 && Dist.get() != 0) {
+      break; // Exit the loop immediately
+    }
+    pros::delay(20); 
+  } 
+  pros::delay(50); 
+  //Reset heading for 0
+  double currentheading = chassis.odom_theta_get();  
+  chassis.pid_turn_set(currentheading, 110);           
+  chassis.pid_wait();
+  pros::delay(200); //wait
+  //DISTANCE SENSOR FOR DRIVING TOWARDS PIN #2
+  chassis.pid_drive_set(15_in, 25); //drive slowly towards pin/cup
+  chassis.pid_wait();
+  while (Dist.get() > 150) { //while loop for distance sensor 
+    pros::delay(20); 
+  } 
+   claw.set(false); //clamp the pin/cup
+  chassis.pid_drive_set(0_in, 0, true); //stop the chassis
+  chassis.pid_wait_quick_chain();
+  pros::delay(200); //wait
+  lift_auto(500); //lift the lift up to score pin
+  lifts(15); //force the lift up
+  chassis.pid_turn_set(215, 60); //turn towards goalto score 
+  chassis.pid_wait();
+  chassis.pid_drive_set(20_in, 60); //Drive into goal
+  chassis.pid_wait();
+  pros::delay(200); //wait
   lift_auto(0); //bring the lift down to score
-    lifts(-20);
-  chassis.pid_wait();
-  pros::delay(700); //wait half a sec
-  chassis.pid_drive_set(-16_in, 60, true); //drive toward pin/cup
-  chassis.pid_wait();
-  pros::delay(500); //wait half a sec
-  claw.set(true); //grab pin/cup
-  pros::delay(700); //wait 700 milliseconds
-  lift_auto(200); //lift the pin/cup slightly off ground
-  chassis.pid_wait();
-  pros::delay(500); //wait half a sec
-  //Score pin/cup
-  chassis.pid_drive_set(16_in, 60, true); //drive back
-  chassis.pid_wait();
-  pros::delay(500);//wait half a sec
-  chassis.pid_turn_set(90_deg, 60); //turn towards goal
-  chassis.pid_wait();
-   pros::delay(500); //wait half a sec
-  lift_auto(500); //lift the lift slightly to score pin
-  pros::delay(500); //wait half a sec
-  chassis.pid_drive_set(-18_in, 60, true); //drive forwards
-  chassis.pid_wait();
-  pros::delay(500); //wait half a sec
-  //Score preload
-  lift_auto(300); //lower the lift
-  pros::delay(500); //wait half a sec
-  claw.set(false); //score preload but unclamping claw
-  pros::delay(500); //wait half a sec
+  claw.set(true); //release the pin/cup
+
+
+  //OLD CODE
+  //Flip the toggle
+  // claw.set(true); 
+  // pros::delay(500); //wait half a sec
+  // toggle1.move(127); //move the toggle motors at full speed
+  // toggle2.move(127);
+  // pros::delay(500); //wait half a sec
+  // //Move towards goal
+  // chassis.pid_drive_set(-13_in, 60, true); //drive forwards
+  // chassis.pid_wait();
+  // toggle1.move(0); //stop the toggle motors form spinning
+  // toggle2.move(0);
+  // chassis.pid_turn_set(90_deg, 60); //turn
+  // chassis.pid_wait();
+  // pros::delay(500); //wait half a sec
+  // lift_auto(200); //lift the lift slightly to score pin
+  // pros::delay(500); //wait half a sec
+  // chassis.pid_drive_set(-18_in, 60, true); //drive forwards
+  // chassis.pid_wait();
+  // pros::delay(500); //wait half a sec
+  // //Score preload
+  // lift_auto(30); //lower the lift
+  // lifts(-10);
+  // pros::delay(500); //wait half a sec
+  // claw.set(false); //score preload but unclamping claw
+  // pros::delay(500); //wait half a sec
+  // //Get pin/cup
+  // chassis.pid_drive_set(15_in, 60); //drive forwards
+  // chassis.pid_wait();
+  //  chassis.pid_turn_set(200_deg, 60); //turn
+  //   chassis.pid_wait();
+  //  chassis.pid_drive_set(-17_in, 60); //drive forwards
+
+  // chassis.pid_wait();
+  //  pros::delay(500); //wait half a sec
+  //   chassis.pid_turn_set(270_deg, 60); //turn
+  //    chassis.pid_wait();
+  //      chassis.pid_drive_set(-20_in, 60); //drive forwards
+  //      chassis.pid_wait();
+  // chassis.pid_turn_set(0_deg, 80); //turn
+  // chassis.pid_wait();
+  // pros::delay(500); //wait half a sec
+  // lift_auto(0); //bring the lift down to score
+  // lifts(-20);
+  // chassis.pid_wait();
+  // pros::delay(700); //wait half a sec
+  // chassis.pid_drive_set(-14_in, 70, true); //drive toward pin/cup
+  // chassis.pid_wait();
+  // pros::delay(500); //wait half a sec
+  // claw.set(true); //grab pin/cup
+  // pros::delay(700); //wait 700 milliseconds
+  // lift_auto(200); //lift the pin/cup slightly off ground
+  // chassis.pid_wait();
+  // pros::delay(500); //wait half a sec
+  // //Score pin/cup
+  // chassis.pid_drive_set(14_in, 70, true); //drive back
+  // chassis.pid_wait();
+  // pros::delay(500);//wait half a sec
+  // chassis.pid_turn_set(90_deg, 70); //turn towards goal
+  // chassis.pid_wait();
+  //  pros::delay(500); //wait half a sec
+  // lift_auto(500); //lift the lift slightly to score pin
+  // pros::delay(500); //wait half a sec
+  // chassis.pid_drive_set(-18_in, 70, true); //drive forwards
+  // chassis.pid_wait();
+  // pros::delay(500); //wait half a sec
+  // //Score preload
+  // lift_auto(300); //lower the lift
+  // pros::delay(500); //wait half a sec
+  // claw.set(false); //score preload but unclamping claw
+  // pros::delay(500); //wait half a sec
 }
 
 //right side auton
 void rightsideauton() {
-   //Flip the toggle
-  claw.set(true); 
-  pros::delay(500); //wait half a sec
-  toggle1.move(127); //move the toggle motors at full speed
-  toggle2.move(127);
-  pros::delay(500); //wait half a sec
+ 
+
   //Move towards goal
-  chassis.pid_drive_set(-14_in, 60, true); //drive forwards
-  chassis.pid_wait();
-  toggle1.move(0); //stop the toggle motors form spinning
-  toggle2.move(0);
-  chassis.pid_turn_set(270_deg, 60); //turn
-  chassis.pid_wait();
-  pros::delay(500); //wait half a sec
-  lift_auto(200); //lift the lift slightly to score pin
-  pros::delay(500); //wait half a sec
-  chassis.pid_drive_set(-18_in, 60, true); //drive forwards
-  chassis.pid_wait();
-  pros::delay(500); //wait half a sec
-  //Score preload
-  lift_auto(100); //lower the lift
-  pros::delay(500); //wait half a sec
-  claw.set(false); //score preload but unclamping claw
-  pros::delay(500); //wait half a sec
-  //Get pin/cup
-  chassis.pid_drive_set(15_in, 70); //drive forwards
-  chassis.pid_wait();
-  chassis.pid_turn_set(0_deg, 80); //turn
-  chassis.pid_wait();
-  pros::delay(500); //wait half a sec
-  lift_auto(0); //bring the lift down to score
-    lifts(-20);
-  chassis.pid_wait();
-  pros::delay(700); //wait half a sec
-  chassis.pid_drive_set(-16_in, 60, true); //drive toward pin/cup
-  chassis.pid_wait();
-  pros::delay(500); //wait half a sec
-  claw.set(true); //grab pin/cup
-  pros::delay(700); //wait 700 milliseconds
-  lift_auto(200); //lift the pin/cup slightly off ground
-  chassis.pid_wait();
-  pros::delay(500); //wait half a sec
-  //Score pin/cup
-  chassis.pid_drive_set(16_in, 60, true); //drive back
-  chassis.pid_wait();
-  pros::delay(500);//wait half a sec
-  chassis.pid_turn_set(270_deg, 60); //turn towards goal
-  chassis.pid_wait();
-   pros::delay(500); //wait half a sec
-  lift_auto(500); //lift the lift slightly to score pin
-  pros::delay(500); //wait half a sec
-  chassis.pid_drive_set(-18_in, 60, true); //drive forwards
-  chassis.pid_wait();
-  pros::delay(500); //wait half a sec
-  //Score preload
-  lift_auto(300); //lower the lift
-  pros::delay(500); //wait half a sec
-  claw.set(false); //score preload but unclamping claw
-  pros::delay(500); //wait half a sec
+  // chassis.pid_drive_set(-14_in, 60, true); //drive forwards
+  // chassis.pid_wait();
+  // toggle1.move(0); //stop the toggle motors form spinning
+  // toggle2.move(0);
+  // chassis.pid_turn_set(270_deg, 60); //turn
+  // chassis.pid_wait();
+  // pros::delay(500); //wait half a sec
+  // lift_auto(200); //lift the lift slightly to score pin
+  // pros::delay(500); //wait half a sec
+  // chassis.pid_drive_set(-18_in, 60, true); //drive forwards
+  // chassis.pid_wait();
+  // pros::delay(500); //wait half a sec
+  // //Score preload
+  // lift_auto(30); //lower the lift
+  // pros::delay(500); //wait half a sec
+  // claw.set(false); //score preload but unclamping claw
+  // pros::delay(500); //wait half a sec
+  // //Get pin/cup
+  // chassis.pid_drive_set(17_in, 60); //drive forwards
+  // chassis.pid_wait();
+  // chassis.pid_turn_set(0_deg, 80); //turn
+  // chassis.pid_wait();
+  // pros::delay(500); //wait half a sec
+  // lift_auto(0); //bring the lift down to score
+  //   lifts(-20);
+  // chassis.pid_wait();
+  // pros::delay(700); //wait half a sec
+  // chassis.pid_drive_set(-15_in, 70, true); //drive toward pin/cup
+  // chassis.pid_wait();
+  // pros::delay(500); //wait half a sec
+  // claw.set(true); //grab pin/cup
+  // pros::delay(700); //wait 700 milliseconds
+  // lift_auto(200); //lift the pin/cup slightly off ground
+  // chassis.pid_wait();
+  // pros::delay(500); //wait half a sec
+  // //Score pin/cup
+  // chassis.pid_drive_set(14_in, 70, true); //drive back
+  // chassis.pid_wait();
+  // pros::delay(500);//wait half a sec
+  // chassis.pid_turn_set(270_deg, 70); //turn towards goal
+  // chassis.pid_wait();
+  //  pros::delay(500); //wait half a sec
+  // lift_auto(500); //lift the lift slightly to score pin
+  // pros::delay(500); //wait half a sec
+  // chassis.pid_drive_set(-18_in, 70, true); //drive forwards
+  // chassis.pid_wait();
+  // pros::delay(500); //wait half a sec
+  // //Score preload
+  // lift_auto(300); //lower the lift
+  // pros::delay(500); //wait half a sec
+  // claw.set(false); //score preload but unclamping claw
+  // pros::delay(500); //wait half a sec
 }
 ///
 // Drive Example
@@ -243,10 +375,9 @@ void drive_and_turn() {
 
 //Lift PID
 void lift() {
-  lift_auto(500);
-  pros::delay(1000);
-  lift_auto(0);
+   lift_auto(400); //lift the lift up to score pin
 }
+
 
 
 ///
