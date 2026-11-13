@@ -67,6 +67,7 @@ void initialize() {
   // Autonomous Selector using LLEMU
   ez::as::auton_selector.autons_add({
       {"Left side auton\n\nT team", leftsideauton},
+      {"Skills auton\n\nT team", Skilssauton},
       {"Right side auton\n\nT team", rightsideauton},
       {"Drive\n\nDrive forward and come back", drive_example},
       {"Turn\n\nTurn 3 times.", turn_example},
@@ -251,6 +252,35 @@ void ez_template_extras() {
  * operator control task will be stopped. Re-enabling the robot will restart the
  * task, not resume it from where it left off.
  */
+
+// void lift_auto(double target) {
+//   liftPID.target_set(target);
+//   // Track the exit condition using only Lift 1
+//   while (liftPID.exit_condition({lift1}, true) == ez::RUNNING) {
+//   // Compute PID power based on the position of lift 1
+//   double output = liftPID.compute(lift1.get_position());
+//    // Check if the target is BELOW the current position (moving downward)
+//     if (target < lift1.get_position()) {
+//       // Scale down the output power. 0.5 cuts the downward speed in half.
+//       output = output * 0.20; 
+//     }
+//   // Send the power to both motors to lift it to the target positon
+//   lifts(output);
+//   pros::delay(ez::util::DELAY_TIME);
+//   }
+// }
+// void lift_task() {
+//   pros::delay(2000);  // Set EZ-Template calibrate before this function starts running
+//   while (true) {
+//     lifts(liftPID.compute(lift1.get_position()));
+
+//     pros::delay(ez::util::DELAY_TIME);
+//   }
+// }
+// pros::Task Lift_Task(lift_task);  // Create the task, this will cause the function to start runni
+
+
+
 void opcontrol() {
   // This is preference to what you like to drive on
   chassis.drive_brake_set(MOTOR_BRAKE_COAST);
@@ -262,33 +292,69 @@ lift2.set_brake_mode(pros::E_MOTOR_BRAKE_HOLD);
   while (true) {
     // Gives you some extras to make EZ-Template ezier
     ez_template_extras();
-
+    bool claw_state = false; 
     chassis.opcontrol_tank();  // Tank control
     // chassis.opcontrol_arcade_standard(ez::SPLIT);   // Standard split arcade
     // chassis.opcontrol_arcade_standard(ez::SINGLE);  // Standard single arcade
     // chassis.opcontrol_arcade_flipped(ez::SPLIT);    // Flipped split arcade
     // chassis.opcontrol_arcade_flipped(ez::SINGLE);   // Flipped single arcade
+// 100mm is roughly 4 inches. Filter out 0 or bad readings.
 
+  int current_dist = Dist.get(); // Or .get_distance() if on PROS 4
+
+if (claw_state == true && current_dist < 60) {
+            claw_state = false;  // Track that the claw is now closed
+            claw.set(claw_state); // Physical close
+            pros::delay(200);   // Brief pause to let it grab and back away
+        }
+
+// if (master.get_digital(DIGITAL_R1)) {
+//   claw.set(true);
+ 
+// } 
+//     if (master.get_digital_new_press(DIGITAL_R1)) {
+//             claw_state = !claw_state; // Flip the state (true becomes false, false becomes true)
+//             claw.set(claw_state);     // Set the piston to match
+//         }
+
+// int current_dist = Dist.get_distance(); 
+//         if (can_auto_clamp && current_dist < 65 && current_dist > 10) {
+//             claw.set(false);        // Automatically close the piston!
+//             can_auto_clamp = false; // Disable auto-clamp until the driver manually opens it
+//         }
     // . . .
     // Put more user control code here!
     // . . .
       //toggle mech for pnumatic claw
+
+
   claw.button_toggle(master.get_digital(DIGITAL_R1)); 
 
+// if (master.get_digital(DIGITAL_RIGHT)) {
+//    liftPID.target_set(-100);
+
+//     pros::delay(ez::util::DELAY_TIME);  // This is used for timer calculations!  Keep this ez::util::DELAY_TIME
+//   }
+
+  if (master.get_digital_new_press(DIGITAL_RIGHT)) {
+            lift_auto(-100); // Pass your target position here
+        }
+
+       
  if (master.get_digital(DIGITAL_L1)) {
       lift1.move(100);
        lift2.move(100);
     } 
     else if (master.get_digital(DIGITAL_L2)) {
       lift1.move(-35);
-       lift2.move(-35);
+      lift2.move(-35);
     } 
     else {
        lift1.brake();
        lift2.brake(); 
    }
  if (master.get_digital(DIGITAL_Y)) {
-      togglemech.move(50);
+      togglemech.move(-50);
     }
     else {
        togglemech.brake();

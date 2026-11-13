@@ -38,6 +38,23 @@ inline pros::Motor toggle2(20);
 inline void Toggle(int input) {
   togglemech.move(input);
  }
+
+ inline void lift_auto(double target) {
+  liftPID.target_set(target);
+  // Track the exit condition using only Lift 1
+  while (liftPID.exit_condition({lift1}, true) == ez::RUNNING) {
+  // Compute PID power based on the position of lift 1
+  double output = liftPID.compute(lift1.get_position());
+   // Check if the target is BELOW the current position (moving downward)
+    if (target < lift1.get_position()) {
+      // Scale down the output power. 0.5 cuts the downward speed in half.
+      output = output * 0.20; 
+    }
+  // Send the power to both motors to lift it to the target positon
+  lifts(output);
+  pros::delay(ez::util::DELAY_TIME);
+  }
+}
 // Your motors, sensors, etc. should go here.  Below are examples
 
 // inline pros::Motor intake(1);
